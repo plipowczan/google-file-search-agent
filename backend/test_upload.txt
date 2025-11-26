@@ -1,0 +1,4 @@
+This is a test file for Gemini RAG Manager.
+It contains some sample text to verify upload functionality.
+Gemini is a powerful multimodal model from Google.
+File Search API allows RAG capabilities.

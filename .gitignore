@@ -1,0 +1,27 @@
+# ===================================
+# Root-level .gitignore
+# Pliki i foldery na poziomie głównego katalogu projektu
+# ===================================
+
+# Environment variables
+.env
+.env.local
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS Files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp

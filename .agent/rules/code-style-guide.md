@@ -1,3 +1,7 @@
+---
+trigger: always_on
+---
+
 # Cursor Rules for Gemini RAG Manager Project
 
 You are an expert Senior Python/React Developer specializing in AI integrations.

@@ -1,6 +1,8 @@
 import os
 import time
 import re
+import logging
+import json
 from typing import Optional
 from google import genai
 from google.genai import types
@@ -314,6 +316,105 @@ class GoogleFileSearchService:
             return True
         except Exception as e:
             raise Exception(f"Failed to delete file: {str(e)}")
+
+    def chat_with_store(self, google_store_name: str, message: str, model_name: str = "gemini-2.5-flash") -> str:
+        """
+        Chat with a specific FileSearchStore.
+        
+        Args:
+            google_store_name: The Google resource name of the store
+            message: User's question/message
+            model_name: Model to use (default: gemini-2.5-flash)
+            
+        Returns:
+            str: Model response text with citations
+        """
+        # Create a local logger for this method if not already existing in class
+        logger = logging.getLogger(__name__)
+        
+        try:
+            # --- INPUT LOGGING ---
+            logger.debug("\n" + "="*60)
+            logger.debug("CHAT REQUEST")
+            logger.debug("="*60)
+            logger.debug(f"Store:   {google_store_name}")
+            logger.debug(f"Model:   {model_name}")
+            logger.debug(f"Message: {message}")
+
+            # Prepare configuration
+            generation_config = types.GenerateContentConfig(
+                tools=[
+                    types.Tool(
+                        file_search=types.FileSearch(
+                            file_search_store_names=[google_store_name]
+                        )
+                    )
+                ]
+            )
+
+            response = self.client.models.generate_content(
+                model=model_name,
+                contents=message,
+                config=generation_config
+            )
+
+            # --- RESPONSE LOGGING ---
+            logger.debug("-" * 60)
+            logger.debug("RESPONSE")
+            logger.debug("-" * 60)
+            logger.debug(f"Text: {response.text}")
+            
+            # Log token usage (simplified)
+            if hasattr(response, 'usage_metadata') and response.usage_metadata:
+                prompt_tokens = getattr(response.usage_metadata, 'prompt_token_count', 0)
+                response_tokens = getattr(response.usage_metadata, 'candidates_token_count', 0)
+                total_tokens = getattr(response.usage_metadata, 'total_token_count', 0)
+                logger.debug(f"Tokens: {prompt_tokens} prompt + {response_tokens} response = {total_tokens} total")
+            
+            # Log grounding/citation metadata (this shows which documents were used)
+            if hasattr(response, 'candidates') and response.candidates:
+                for i, candidate in enumerate(response.candidates):
+                    # Check for grounding metadata (File Search context)
+                    if hasattr(candidate, 'grounding_metadata') and candidate.grounding_metadata:
+                        logger.debug("-" * 60)
+                        logger.debug("FILE SEARCH CONTEXT (Grounding)")
+                        logger.debug("-" * 60)
+                        grounding = candidate.grounding_metadata
+                        
+                        # Log grounding chunks if available
+                        if hasattr(grounding, 'grounding_chunks') and grounding.grounding_chunks:
+                            for j, chunk in enumerate(grounding.grounding_chunks):
+                                logger.debug(f"\nChunk {j+1}:")
+                                if hasattr(chunk, 'web') and chunk.web:
+                                    logger.debug(f"  Source: {chunk.web.uri if hasattr(chunk.web, 'uri') else 'N/A'}")
+                                    logger.debug(f"  Title: {chunk.web.title if hasattr(chunk.web, 'title') else 'N/A'}")
+                                if hasattr(chunk, 'retrieved_context') and chunk.retrieved_context:
+                                    logger.debug(f"  Context: {chunk.retrieved_context.text if hasattr(chunk.retrieved_context, 'text') else 'N/A'}")
+                        
+                        # Log grounding support
+                        if hasattr(grounding, 'grounding_supports') and grounding.grounding_supports:
+                            logger.debug(f"\nGrounding Supports: {len(grounding.grounding_supports)} items")
+                    
+                    # Check for citation metadata
+                    if hasattr(candidate, 'citation_metadata') and candidate.citation_metadata:
+                        citations = candidate.citation_metadata
+                        if hasattr(citations, 'citation_sources') and citations.citation_sources:
+                            logger.debug("-" * 60)
+                            logger.debug("CITATIONS")
+                            logger.debug("-" * 60)
+                            for j, citation in enumerate(citations.citation_sources):
+                                logger.debug(f"\nCitation {j+1}:")
+                                if hasattr(citation, 'uri'):
+                                    logger.debug(f"  URI: {citation.uri}")
+                                if hasattr(citation, 'start_index') and hasattr(citation, 'end_index'):
+                                    logger.debug(f"  Span: characters {citation.start_index}-{citation.end_index}")
+            
+            logger.debug("="*60 + "\n")
+
+            return response.text
+        except Exception as e:
+            logger.error(f"Failed to generate content: {str(e)}", exc_info=True)
+            raise Exception(f"Failed to generate content: {str(e)}")
 
 
 # Singleton instance
